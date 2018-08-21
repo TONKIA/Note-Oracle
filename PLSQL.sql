@@ -757,14 +757,206 @@ BEGIN
 END;
 
 
+
+
+
+
+
+
+
+
 --异常处理
 --预定义异常
 --非预定义异常
 --用户自定义异常
 
+--EXCEPTION 
+--  WHEN exception01 THEN
+--    ...
+--  WHEN exception01 THEN
+--    ...
+--  [WHEN OTHERS THEN ... ]  
+
+--常用的预定义异常
+--NO_DATA_FOUND
+--TOO_MANY_ROWS
+--VALUE_ERROR:PLSQL里的转换失败
+--INVALID_NUMBER:SQL里的转换失败
+
+--CASE_NOT_FOUND
+
+--非预定义异常
+
+--e_my_exception EXCEPTION;
+--PRAGMA EXCEPTION_INIT(e_my_exception,<错误码>);
+
+--自定义异常
+--定义
+e_invalid_prd_id EXCEPTION;
+--抛出
+RAISE e_invalid_prd_id;
+--捕获
+WHEN e_invalid_prd_id THEN ...
+
+BEGIN 
+     DECLARE
+          --在内部块定义的异常
+          e_1 EXCEPTION;
+     BEGIN
+          RAISE e_1; 
+     END;
+EXCEPTION
+     --捕获不到e_1  用包来定义异常或者others 
+     WHEN OTHERS THEN
+       NULL;
+END;
+
+--子块的异常 -> 外部块
+
+
+
+
+
 --触发器
+--三类：
+--DML触发器：该类触发器由DML语句激发
+--Instead-of触发器：定义在视图上的
+--系统触发器：DDL或者数据库系统事件激发
+
+
+--****DML触发器****
+--触发时机：事前和事后
+--触发事件：insert update delete
+--触发类型：行级 语句级
+--触发条件：仅仅适用于行级
+--触发操作：执行的代码
+
+--顺序：一个表可以定义任意数量的触发器
+-- 1.语句级事前触发
+-- 2.行级事前触发
+-- 3.执行DML操作
+-- 4.行级事后触发
+-- 5.语句级事后触发
+
+--创建触发器
+--CREATE [OR REPLACE] TRIGGER trigger_name
+--{BEFORE|AFTER} event[OR event2] ON table_name
+--[FOR EACH ROW [WHEN(trigger_condition)]]      (行级触发器)
+--trigger_body
+
+CREATE TABLE log_info(
+       ID INT PRIMARY KEY,
+       user_name VARCHAR2(100) NOT NULL,
+       operate_date DATE,
+       operate_type VARCHAR2(50)
+);
+CREATE SEQUENCE seq_log_id;
+
+
+
+--触发器里不要做与事物有关的操作  user函数：获取当前的user
+CREATE OR REPLACE TRIGGER tr_before_update_prd
+BEFORE UPDATE ON product 
+DECLARE
+
+BEGIN
+  INSERT INTO log_info VALUES(seq_log_id.nextval,USER,SYSDATE,'UPDATE');
+END tr_before_update_prd;
+
+
+
+
+
+
+SELECT log_info.*,ROWID FROM log_info;
+
+DELETE FROM log_info
+
+TRUNCATE TABLE log_info;
+
+SELECT * FROM product ORDER BY 1;
+
+UPDATE product SET product_price=product_price+50 WHERE product_price<50
+DELETE FROM product WHERE product_id=33;
+
+--布尔函数 updating deleting inserting
+
+CREATE OR REPLACE TRIGGER tr_before_update_prd
+BEFORE UPDATE OR DELETE OR INSERT ON product
+DECLARE
+       v_ope VARCHAR(50);
+BEGIN
+  IF updating THEN
+    v_ope:='UPDATE';
+    ELSIF deleting THEN
+      v_ope:='DELETE';
+      ELSE 
+        v_ope:='INSERT';
+        END IF;
+  INSERT INTO log_info VALUES(seq_log_id.nextval,USER,SYSDATE,v_ope,NULL,NULL);
+END tr_before_update_prd;
+
+
+--行级触发器
+CREATE OR REPLACE TRIGGER tr_before_update_prd_row
+AFTER UPDATE ON product
+FOR EACH ROW
+DECLARE
+
+BEGIN
+  INSERT INTO log_info VALUES(seq_log_id.nextval,USER,SYSDATE,'UPDATE ROW',NULL,NULL);
+END tr_before_update_prd_row;
+
+UPDATE product p SET p.product_price=p.product_price+1 WHERE p.product_id<40;
+
+--伪记录类型变量
+
+--            ：old                ：new
+--insert      未定义               DML语句将要插入的值
+--update      更新前的值           更新后的值
+--delete      删除前的值           未定义
+
+ALTER TABLE log_info ADD old_price FLOAT;
+ALTER TABLE log_info ADD new_price FLOAT;
+
+CREATE OR REPLACE TRIGGER tr_before_update_prd_row
+BEFORE UPDATE OR INSERT OR DELETE ON product
+FOR EACH ROW
+DECLARE 
+       v_ope VARCHAR(50);
+BEGIN
+  IF inserting THEN
+    v_ope:='INSERT ROW';
+    ELSIF updating THEN
+      v_ope:='UPDATE ROW';
+    ELSE
+      v_ope:='DELETE ROW';
+    END IF;
+    INSERT INTO log_info VALUES(seq_log_id.nextval,USER,SYSDATE,v_ope,:old.product_price,:new.product_price);
+END tr_before_update_prd_row;
+
+
+CREATE OR REPLACE TRIGGER tr_before_update_prd_row
+BEFORE UPDATE ON product
+FOR EACH ROW WHEN(old.product_type_id=1)
+DECLARE
+
+BEGIN
+  INSERT INTO log_info VALUES(seq_log_id.nextval,USER,SYSDATE,'UPDATE ROW',:old.product_price,:new.product_price);
+END tr_before_update_prd_row;
+
+
+--:old和：new在事前事后中都可以调用
+--:old只能读取不能修改，:new在事前触发器代码中可以修改
+--:old和：new仅仅在行级触发器代码中有效
+--在when中使用不需要加冒号：前缀 old 和 new
+
+
 
 --导入导出
+--exp.exe
+--imp.exe
+
 --exp SYSTEM/PWD[@SID] file=xxx.dmp full=y              (完全模式)
 --exp SYSTEM/pwD[@SID] file=xxx.dmp owner=(u1,u2,...)   (用户模式)
 --exp USER/PWD[@SID] file=xxx.dmp table=(t1,t2,...)     (表模式)
@@ -772,6 +964,17 @@ END;
 --imp SYSTEM/PWD file=xxx.dmp full=y
 --imp SYSTEM/PWD file=xxx.dmp fromuser=(...) touser=(...)
 --imp USER/PWD file=xxx.dmp table=(...)
+
+
+--exp tonkia/123456@tong_service file=f:/tonkia.dmp owner=tonkia
+
+--必须使用带有dba角色的进行用户模式的导入
+--imp system/123456 file=f:/tonkia.dmp fromuser=tonkia touser=tongxk
+
+
+--ignore=y  (存在就不导入)
+
+
 
 
 
